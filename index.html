@@ -389,7 +389,7 @@ const AudioEngine = (() => {
   const ROOT = 55; // A1
   const THEMES = [
     { // level 1 — minimal, atmospheric
-      bpm: 126, cutoffBase: 300, cutoffEnv: 900, res: 8, bassGain: 0.16,
+      bpm: 128, cutoffBase: 300, cutoffEnv: 900, res: 8, bassGain: 0.16,
       kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
       hat:  [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
       clap: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
@@ -398,7 +398,7 @@ const AudioEngine = (() => {
       pad: [110, 130.81, 164.81], padGain: 0.045, glitch: 0
     },
     { // level 2 — sharper 303
-      bpm: 132, cutoffBase: 380, cutoffEnv: 2200, res: 14, bassGain: 0.18,
+      bpm: 128, cutoffBase: 380, cutoffEnv: 2200, res: 14, bassGain: 0.18,
       kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,1],
       hat:  [0,1,1,0, 1,0,1,1, 0,1,1,0, 1,0,1,1],
       clap: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
@@ -407,7 +407,7 @@ const AudioEngine = (() => {
       pad: null, padGain: 0, glitch: 0
     },
     { // level 3 — darker, faster
-      bpm: 140, cutoffBase: 320, cutoffEnv: 2600, res: 18, bassGain: 0.19,
+      bpm: 128, cutoffBase: 320, cutoffEnv: 2600, res: 18, bassGain: 0.19,
       kick: [1,0,0,0, 1,0,0,0, 1,0,0,1, 1,0,0,0],
       hat:  [1,1,0,1, 1,1,0,1, 1,1,0,1, 1,1,1,1],
       clap: [0,0,0,0, 1,0,0,0, 0,0,1,0, 1,0,0,0],
@@ -416,7 +416,7 @@ const AudioEngine = (() => {
       pad: [82.41, 98, 116.54], padGain: 0.03, glitch: 0.15
     },
     { // level 4 — glitch rhythm + synthetic percussion
-      bpm: 146, cutoffBase: 420, cutoffEnv: 3200, res: 20, bassGain: 0.2,
+      bpm: 128, cutoffBase: 420, cutoffEnv: 3200, res: 20, bassGain: 0.2,
       kick: [1,0,0,1, 1,0,0,0, 1,0,1,0, 1,0,0,1],
       hat:  [1,1,1,1, 0,1,1,1, 1,1,1,0, 1,1,1,1],
       clap: [0,0,1,0, 1,0,0,1, 0,0,1,0, 1,0,0,0],
@@ -487,17 +487,6 @@ const AudioEngine = (() => {
     o.connect(f); f.connect(g); g.connect(musicGain);
     o.start(t); o.stop(t + stepDur);
   }
-  function lead(t, semis, stepDur) {
-    const o = ac.createOscillator(); o.type = "square";
-    o.frequency.value = ROOT * 4 * Math.pow(2, semis / 12);
-    const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 2400;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.04, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + stepDur * 1.8);
-    o.connect(f); f.connect(g); g.connect(musicGain);
-    o.start(t); o.stop(t + stepDur * 2);
-  }
-  const ARP = [0, 3, 7, 10, 12, 10, 7, 3];
   function glitchHit(t) {
     const o = ac.createOscillator(); o.type = "square";
     o.frequency.value = 400 + Math.random() * 3000;
@@ -539,7 +528,7 @@ const AudioEngine = (() => {
       const s = step % 16;
       const bar = Math.floor(step / 16);
       const phase = bar % 16;                       // 16-bar arrangement cycle
-      const breakdown = phase >= 12 && phase <= 13; // kick drops out, arp takes over
+      const breakdown = phase >= 12 && phase <= 13; // drums drop out, acid line rides solo
       const fill = (phase % 8) === 7 && s >= 12;    // clap roll at end of every 8th bar
       const busy = phase >= 8 && !breakdown;        // back half: denser hats, rotated bass
 
@@ -548,10 +537,7 @@ const AudioEngine = (() => {
       if (th.clap[s] || (fill && s % 2 === 0)) clap(nextTime);
       const b = th.bass[busy ? (s + 8) % 16 : s];
       const tr = ((bar >> 2) % 2 === 1) ? 5 : 0;    // up a fourth on alternating 4-bar blocks
-      if (b !== null && b !== undefined && !breakdown) bass303(nextTime, b + tr, !!th.acc[s], th, stepDur);
-      if ((breakdown || (phase >= 4 && phase < 8)) && s % 2 === 0) {
-        lead(nextTime, ARP[(bar * 2 + s / 2) % 8] + tr, stepDur);
-      }
+      if (b !== null && b !== undefined) bass303(nextTime, b + tr, !!th.acc[s], th, stepDur);
       if (th.glitch && Math.random() < th.glitch * (busy ? 1.5 : 1)) glitchHit(nextTime + stepDur * Math.random());
       nextTime += stepDur;
       step++;
@@ -592,6 +578,8 @@ const AudioEngine = (() => {
     collect: () => { blip(880, 1320, 0.09, 0.10, "sine"); setTimeout(() => blip(1320, 1760, 0.1, 0.08, "sine"), 70); },
     damage:  () => blip(220, 70, 0.25, 0.14, "square"),
     stomp:   () => blip(500, 140, 0.12, 0.12, "triangle"),
+    power:   () => { blip(330, 660, 0.15, 0.12, "triangle"); setTimeout(() => blip(660, 990, 0.15, 0.09, "triangle"), 90); },
+    oneup:   () => { [392, 523, 659, 784].forEach((f, i) => setTimeout(() => blip(f, f, 0.12, 0.1, "square"), i * 80)); },
     complete:() => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, f, 0.18, 0.1, "sine"), i * 110)); },
     gameover:() => { [330, 262, 196, 131].forEach((f, i) => setTimeout(() => blip(f, f * 0.97, 0.3, 0.1, "triangle"), i * 160)); }
   };
@@ -730,6 +718,33 @@ const sprCorrupt = makeSprite([
   "rr......rr"
 ], 3);
 
+// pickups
+const sprLife = makeSprite([
+  ".rr..rr.",
+  "rrrrrrrr",
+  "rrrrrrrr",
+  ".rrrrrr.",
+  "..rrrr..",
+  "...rr..."
+], 3);
+const sprShield = makeSprite([
+  "..bbbb..",
+  ".bbwwbb.",
+  "bbwwwwbb",
+  "bbwwwwbb",
+  ".bbwwbb.",
+  "..bbbb.."
+], 3);
+const sprGem = makeSprite([
+  "...yy...",
+  "..yyyy..",
+  ".yyyyyy.",
+  "yyyyyyyy",
+  ".yyyyyy.",
+  "..yyyy..",
+  "...yy..."
+], 3);
+
 /* =========================================================
    LEVELS
    ========================================================= */
@@ -741,6 +756,7 @@ function buildLevels() {
   const ground = (x, w) => ({ x, y: G, w, h: H - G });
   const f = (x, y) => ({ x, y });
   const e = (type, x, opts) => Object.assign({ type, x }, opts || {});
+  const pk = (type, x, y) => ({ type, x, y }); // pickup: life | shield | gem
 
   return [
     { /* LEVEL 1 — boot sequence */
@@ -766,6 +782,7 @@ function buildLevels() {
         e("bug", 2500, { min: 2360, max: 2700 }),
         e("zapper", 2850, { min: 2760, max: 3000 })
       ],
+      pickups: [pk("life", 940, 430), pk("gem", 1280, 190), pk("shield", 2660, 245)],
       portal: { x: 3060, y: G - 86 }
     },
     { /* LEVEL 2 — acid cache */
@@ -796,6 +813,7 @@ function buildLevels() {
         e("glitch", 3100, { y: 390 }),
         e("bug", 3400, { min: 3260, max: 3600 })
       ],
+      pickups: [pk("gem", 1060, 175), pk("life", 1730, 220), pk("shield", 3520, 430)],
       portal: { x: 3660, y: G - 86 }
     },
     { /* LEVEL 3 — dark sector */
@@ -832,6 +850,7 @@ function buildLevels() {
         e("drone", 3300, { y: 300, amp: 130 }),
         e("bug", 3700, { min: 3500, max: 3920, fast: true })
       ],
+      pickups: [pk("gem", 520, 430), pk("life", 1250, 135), pk("shield", 3010, 185)],
       portal: { x: 4060, y: G - 86 }
     },
     { /* LEVEL 4 — corrupted core */
@@ -875,6 +894,7 @@ function buildLevels() {
         e("drone", 4500, { y: 230, amp: 90 }),
         e("corrupt", 4550, { min: 4420, max: 4700 })
       ],
+      pickups: [pk("life", 1500, 135), pk("shield", 2680, 125), pk("gem", 3630, 140), pk("life", 4400, 155)],
       portal: { x: 4660, y: G - 86 }
     }
   ];
@@ -974,11 +994,11 @@ const player = {
   vx: 0, vy: 0,
   onGround: false, facing: 1, ride: null,
   coyote: 0, jumpBuf: 0,
-  invuln: 0, anim: 0,
+  invuln: 0, shield: 0, anim: 0,
   dead: false
 };
 
-let platforms = [], enemies = [], frags = [], portal = null, levelWidth = 0;
+let platforms = [], enemies = [], frags = [], pickups = [], portal = null, levelWidth = 0;
 
 const keys = { left: false, right: false, jump: false, jumpHeld: false };
 
@@ -988,6 +1008,7 @@ function loadLevel(idx) {
   game.level = idx;
   platforms = L.platforms.map(p => ({ ...p, baseX: p.x, baseY: p.y, dxm: 0, dym: 0 }));
   frags = L.fragments.map(f => ({ x: f.x, y: f.y, taken: false, t: Math.random() * 6 }));
+  pickups = (L.pickups || []).map(p => ({ ...p, taken: false, t: Math.random() * 6 }));
   enemies = L.enemies.map(e => spawnEnemy(e));
   portal = { x: L.portal.x, y: L.portal.y, w: 52, h: 86 };
   levelWidth = L.width;
@@ -1020,7 +1041,7 @@ function respawn() {
   player.x = 60; player.y = GROUND_Y - player.h - 4;
   player.vx = 0; player.vy = 0;
   player.onGround = false; player.invuln = 2; player.dead = false;
-  player.ride = null;
+  player.ride = null; player.shield = 0;
   game.camX = 0;
 }
 
@@ -1037,6 +1058,13 @@ function floater(x, y, text, color) {
 
 /* ---------------- player damage / death ---------------- */
 function hurt() {
+  if (player.shield > 0) {
+    // shield soaks the hit — flash and knock back slightly, no life lost
+    burst(player.x + player.w / 2, player.y + player.h / 2, PAL.b, 8, 150);
+    player.vy = -300;
+    player.vx = -player.facing * 140;
+    return;
+  }
   if (player.invuln > 0) return;
   game.lives--;
   AudioEngine.sfx.damage();
@@ -1166,6 +1194,7 @@ function update(dt) {
     }
   }
   if (player.invuln > 0) player.invuln -= dt;
+  if (player.shield > 0) player.shield -= dt;
   if (player.y > H + 60) { fellOff(); return; }
 
   /* ----- enemies ----- */
@@ -1242,6 +1271,38 @@ function update(dt) {
       AudioEngine.sfx.collect();
       burst(fr.x, fr.y, PAL.g, 8, 130);
       floater(fr.x, fr.y - 8, "+10", PAL.g);
+      updateHud();
+    }
+  }
+
+  /* ----- pickups ----- */
+  for (const pu of pickups) {
+    if (pu.taken) continue;
+    pu.t += dt;
+    const box = { x: pu.x - 13, y: pu.y - 13, w: 26, h: 26 };
+    if (aabb(player, box)) {
+      pu.taken = true;
+      if (pu.type === "life") {
+        if (game.lives < 5) {
+          game.lives++;
+          floater(pu.x, pu.y - 8, "+1 UP", PAL.r);
+        } else {
+          game.score += 50;
+          floater(pu.x, pu.y - 8, "+50", PAL.r);
+        }
+        AudioEngine.sfx.oneup();
+        burst(pu.x, pu.y, PAL.r, 10, 150);
+      } else if (pu.type === "shield") {
+        player.shield = 8;
+        floater(pu.x, pu.y - 8, "SHIELD", PAL.b);
+        AudioEngine.sfx.power();
+        burst(pu.x, pu.y, PAL.b, 10, 150);
+      } else { // gem
+        game.score += 50;
+        floater(pu.x, pu.y - 8, "+50", PAL.y);
+        AudioEngine.sfx.power();
+        burst(pu.x, pu.y, PAL.y, 10, 150);
+      }
       updateHud();
     }
   }
@@ -1348,6 +1409,19 @@ function render() {
     cx.restore();
   }
 
+  /* pickups */
+  for (const pu of pickups) {
+    if (pu.taken) continue;
+    const bob = Math.sin(pu.t * 2.6) * 4;
+    const spr = pu.type === "life" ? sprLife : pu.type === "shield" ? sprShield : sprGem;
+    // soft glow behind
+    cx.globalAlpha = 0.18 + 0.1 * Math.sin(pu.t * 4);
+    cx.fillStyle = pu.type === "life" ? PAL.r : pu.type === "shield" ? PAL.b : PAL.y;
+    cx.fillRect(pu.x - 15, pu.y + bob - 15, 30, 30);
+    cx.globalAlpha = 1;
+    cx.drawImage(spr, Math.round(pu.x - spr.width / 2), Math.round(pu.y + bob - spr.height / 2));
+  }
+
   /* enemies */
   for (const en of enemies) {
     if (en.dead) continue;
@@ -1395,6 +1469,14 @@ function render() {
       cx.drawImage(spr, plx, ply, player.w, player.h);
     }
     cx.restore();
+    // shield aura (blinks during the last 2 seconds)
+    if (player.shield > 0 && (player.shield > 2 || Math.floor(game.time * 8) % 2 === 0)) {
+      cx.strokeStyle = "rgba(90,167,212,0.75)";
+      cx.lineWidth = 2;
+      cx.beginPath();
+      cx.arc(plx + player.w / 2, ply + player.h / 2, 27 + Math.sin(game.time * 5) * 2, 0, Math.PI * 2);
+      cx.stroke();
+    }
   }
 
   /* particles */
