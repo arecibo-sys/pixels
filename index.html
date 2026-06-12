@@ -192,33 +192,23 @@
     inset: 0;
     display: none;
     pointer-events: none;
-    z-index: 6;
+    z-index: 4; /* below HUD so pause/mute stay tappable */
   }
-  body.touchmode #touch.active { display: block; }
-  .tbtn {
+  body.touchmode #touch.active { display: block; pointer-events: auto; }
+  /* invisible split-screen zones — left half drag to move, right half tap to jump.
+     only tiny fading hints are drawn, so nothing covers the playfield */
+  .thint {
     position: absolute;
-    bottom: calc(4% + env(safe-area-inset-bottom, 0px));
-    width: clamp(58px, 11vmin, 84px);
-    height: clamp(58px, 11vmin, 84px);
-    border-radius: 50%;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.25);
-    color: rgba(255,255,255,0.75);
-    font-size: clamp(18px, 4vmin, 26px);
-    font-family: inherit;
-    pointer-events: auto;
-    display: flex; align-items: center; justify-content: center;
-    touch-action: none;
+    bottom: calc(2% + env(safe-area-inset-bottom, 0px));
+    font-size: clamp(9px, 1.7vmin, 12px);
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    transition: opacity 1.2s;
   }
-  #tleft  { left: calc(3% + env(safe-area-inset-left, 0px)); }
-  #tright { left: calc(3% + env(safe-area-inset-left, 0px) + clamp(58px, 11vmin, 84px) + 16px); }
-  #tjump  {
-    right: calc(3% + env(safe-area-inset-right, 0px));
-    width: clamp(70px, 13.5vmin, 98px);
-    height: clamp(70px, 13.5vmin, 98px);
-    background: rgba(217,119,87,0.16);
-    border-color: rgba(217,119,87,0.55);
-  }
+  #hintMove { left: calc(4% + env(safe-area-inset-left, 0px)); }
+  #hintJump { right: calc(4% + env(safe-area-inset-right, 0px)); }
+  #touch.faded .thint { opacity: 0; }
   /* bigger tap targets on touch devices */
   body.touchmode .iconbtn { padding: 9px 16px; font-size: 15px; }
   body.touchmode .bigbtn { padding: 15px 48px; }
@@ -253,8 +243,6 @@
   @media (orientation: portrait) and (pointer: coarse) and (max-width: 740px) {
     #rotate { display: flex; }
   }
-  .tbtn.down { background: rgba(255,255,255,0.18); }
-  #tjump.down { background: rgba(217,119,87,0.35); }
 
   #toast {
     position: absolute;
@@ -299,9 +287,8 @@
     </div>
 
     <div id="touch">
-      <div class="tbtn" id="tleft">◀</div>
-      <div class="tbtn" id="tright">▶</div>
-      <div class="tbtn" id="tjump">▲</div>
+      <div class="thint" id="hintMove">◀ hold &amp; drag ▶</div>
+      <div class="thint" id="hintJump">tap to jump</div>
     </div>
 
     <div id="toast"></div>
@@ -314,6 +301,7 @@
       <button class="ghostbtn" id="btnLevels">LEVEL SELECT</button>
       <div class="keys">
         <b>← →</b> or <b>A D</b> move &nbsp;·&nbsp; <b>SPACE / ↑ / W</b> jump<br>
+        touch: <b>left half</b> hold &amp; drag to move &nbsp;·&nbsp; <b>right half</b> tap to jump<br>
         <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; stomp enemies, collect <span style="color:var(--accent)">◇</span>, reach the portal
       </div>
     </div>
@@ -1375,13 +1363,14 @@ function render() {
     cx.save();
     if (en.type === "glitch" && Math.random() < 0.1) cx.globalAlpha = 0.4;
     if (en.type === "ghost") cx.globalAlpha = 0.85;
+    const ex = Math.round(en.x), ey = Math.round(en.y);
     const flip = (en.type === "bug" || en.type === "corrupt" || en.type === "zapper") && en.dir < 0;
     if (flip) {
-      cx.translate(en.x + en.w, en.y);
+      cx.translate(ex + en.w, ey);
       cx.scale(-1, 1);
       cx.drawImage(spr, 0, 0, en.w, en.h);
     } else {
-      cx.drawImage(spr, en.x, en.y, en.w, en.h);
+      cx.drawImage(spr, ex, ey, en.w, en.h);
     }
     cx.restore();
     if (en.type === "corrupt" && Math.random() < 0.25) {
@@ -1397,12 +1386,13 @@ function render() {
     if (!player.onGround) spr = heroJump;
     else if (Math.abs(player.vx) > 20) spr = (Math.floor(player.anim) % 2 === 0) ? heroWalk : heroIdle;
     cx.save();
+    const plx = Math.round(player.x), ply = Math.round(player.y);
     if (player.facing < 0) {
-      cx.translate(player.x + player.w, player.y);
+      cx.translate(plx + player.w, ply);
       cx.scale(-1, 1);
       cx.drawImage(spr, 0, 0, player.w, player.h);
     } else {
-      cx.drawImage(spr, player.x, player.y, player.w, player.h);
+      cx.drawImage(spr, plx, ply, player.w, player.h);
     }
     cx.restore();
   }
@@ -1458,6 +1448,7 @@ function showScreen(id) {
   screens.forEach(s => document.getElementById(s).classList.toggle("show", s === id));
   document.getElementById("hud").style.display = (id === null) ? "flex" : "none";
   document.getElementById("touch").classList.toggle("active", id === null);
+  if (id !== null) document.getElementById("touch").classList.remove("faded");
 }
 function hideScreens() { showScreen(null); }
 
@@ -1570,20 +1561,39 @@ if ("ontouchstart" in window || navigator.maxTouchPoints > 0 ||
 // fallback: any real touch anywhere enables touch controls
 window.addEventListener("touchstart", enableTouchMode, { once: true, passive: true });
 
-// pointer events cover touch, stylus and mouse — one binding works everywhere
-function bindTouch(id, down, up) {
-  const el = document.getElementById(id);
-  const on = (e) => { e.preventDefault(); el.setPointerCapture && el.setPointerCapture(e.pointerId); el.classList.add("down"); down(); };
-  const off = (e) => { e.preventDefault(); el.classList.remove("down"); up(); };
-  el.addEventListener("pointerdown", on);
-  el.addEventListener("pointerup", off);
-  el.addEventListener("pointercancel", off);
-  el.addEventListener("pointerleave", off);
-  el.addEventListener("contextmenu", (e) => e.preventDefault());
+// split-screen gestures: left half = drag thumb to move (with trailing origin so
+// reversing direction is instant), right half = tap to jump, hold for higher jump
+const touchEl = document.getElementById("touch");
+const T_DEAD = 10, T_TRAIL = 44; // CSS px: deadzone + max origin trail distance
+let movePtr = null, jumpPtr = null, moveOX = 0, hintFadeT = null;
+touchEl.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  touchEl.setPointerCapture && touchEl.setPointerCapture(e.pointerId);
+  if (e.clientX < window.innerWidth / 2) {
+    if (movePtr === null) { movePtr = e.pointerId; moveOX = e.clientX; }
+  } else if (jumpPtr === null) {
+    jumpPtr = e.pointerId;
+    keys.jump = true; keys.jumpHeld = true;
+  }
+  clearTimeout(hintFadeT);
+  hintFadeT = setTimeout(() => touchEl.classList.add("faded"), 4000);
+});
+touchEl.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== movePtr) return;
+  e.preventDefault();
+  let dx = e.clientX - moveOX;
+  if (dx > T_TRAIL) { moveOX = e.clientX - T_TRAIL; dx = T_TRAIL; }
+  else if (dx < -T_TRAIL) { moveOX = e.clientX + T_TRAIL; dx = -T_TRAIL; }
+  keys.left = dx < -T_DEAD;
+  keys.right = dx > T_DEAD;
+});
+function touchEnd(e) {
+  if (e.pointerId === movePtr) { movePtr = null; keys.left = keys.right = false; }
+  if (e.pointerId === jumpPtr) { jumpPtr = null; keys.jumpHeld = false; }
 }
-bindTouch("tleft", () => keys.left = true, () => keys.left = false);
-bindTouch("tright", () => keys.right = true, () => keys.right = false);
-bindTouch("tjump", () => { keys.jump = true; keys.jumpHeld = true; }, () => keys.jumpHeld = false);
+touchEl.addEventListener("pointerup", touchEnd);
+touchEl.addEventListener("pointercancel", touchEnd);
+touchEl.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // block page scroll / pull-to-refresh / pinch zoom while playing
 document.addEventListener("touchmove", (e) => {
